@@ -1,0 +1,25 @@
+[package]
+name = "solver"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+getrandom = "0.2.9"
+proconio = "0.4.3"
+rand = { version = "0.8.5", features = ["small_rng"] }
+rand_chacha = "0.3.1"
+rand_core = "0.6.4"
+rand_distr = "0.4.3"
+rand_hc = "0.3.2"
+rand_pcg = "0.3.1"
+
+[features]
+default = [
+    "local",
+    # "stats",
+]
+
+local = []
+stats = []
