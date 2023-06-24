@@ -1,10 +1,12 @@
 version: "3.8"
 services:
   rust:
-    container_name: "rust"
+    container_name: "ahc020"
     build: ./
     volumes:
-      - ./:/rust:delegated
+      - ./:/ahc020:delegated
     ports:
       - 4000:4000
     tty: true
+    environment:
+      CARGO_BUILD_TARGET_DIR: /target
