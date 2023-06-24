@@ -9,5 +9,5 @@ fn main() {
     let mut source = LineSource::new(BufReader::new(stdin));
     let input = Input::from_source(&mut source);
     let solution = solve(&input);
-    println!("{}", solution.score);
+    println!("{}", solution.output);
 }
