@@ -1,18 +1,81 @@
 use proconio::{input, marker::Usize1, source::Source};
 use std::io::BufRead;
+use union_find::UnionFind;
+
+pub mod union_find {
+
+    #[derive(Debug, Clone)]
+    pub struct UnionFind {
+        par: Vec<usize>,
+        size: Vec<usize>,
+    }
+
+    impl UnionFind {
+        pub fn new(n: usize) -> Self {
+            Self {
+                par: vec![0; n],
+                size: vec![1; n],
+            }
+        }
+
+        pub fn find_root(&mut self, a: usize) -> usize {
+            if self.size[a] > 0 {
+                return a;
+            }
+            self.par[a] = self.find_root(self.par[a]);
+            self.par[a]
+        }
+
+        pub fn union(&mut self, a: usize, b: usize) -> usize {
+            let mut x = self.find_root(a);
+            let mut y = self.find_root(b);
+            if x == y {
+                return x;
+            }
+            if self.size[x] < self.size[y] {
+                std::mem::swap(&mut x, &mut y);
+            }
+            self.size[x] += self.size[y];
+            self.size[y] = 0;
+            self.par[y] = x;
+            x
+        }
+
+        pub fn in_same_set(&mut self, a: usize, b: usize) -> bool {
+            self.find_root(a) == self.find_root(b)
+        }
+
+        pub fn group_size(&mut self, a: usize) -> usize {
+            let x = self.find_root(a);
+            self.size[x]
+        }
+    }
+}
+
+#[derive(Clone, Debug, Copy, PartialEq, Eq, Hash)]
+pub struct Point {
+    pub x: i32,
+    pub y: i32,
+}
+
+impl Point {
+    pub fn dist(&self, other: &Self) -> i32 {
+        let dx = self.x - other.x;
+        let dy = self.y - other.y;
+        dx * dx + dy * dy
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct Input {
     pub n: usize,
     pub m: usize,
     pub k: usize,
-    pub x: Vec<i64>,
-    pub y: Vec<i64>,
+    pub stations: Vec<Point>,
     pub u: Vec<usize>,
     pub v: Vec<usize>,
     pub w: Vec<usize>,
-    pub a: Vec<i64>,
-    pub b: Vec<i64>,
+    pub residents: Vec<Point>,
 }
 
 impl Input {
@@ -22,9 +85,9 @@ impl Input {
             n: usize,
             m: usize,
             k: usize,
-            xy: [(i64, i64); n],
+            xy: [(i32, i32); n],
             uvw: [(Usize1, Usize1, usize); m],
-            ab: [(i64, i64); k],
+            ab: [(i32, i32); k],
         }
         let mut x = vec![0; n];
         let mut y = vec![0; n];
@@ -33,6 +96,7 @@ impl Input {
             x[i] = xi;
             y[i] = yi;
         }
+        let stations = xy.iter().map(|&(x, y)| Point { x, y }).collect();
 
         let mut u = vec![0; m];
         let mut v = vec![0; m];
@@ -43,44 +107,83 @@ impl Input {
             v[i] = vi;
             w[i] = wi;
         }
-        let mut a = vec![0; k];
-        let mut b = vec![0; k];
-        for i in 0..k {
-            let (ai, bi) = ab[i];
-            a[i] = ai;
-            b[i] = bi;
-        }
+
+        let residents = ab.iter().map(|&(x, y)| Point { x, y }).collect();
 
         Self {
             n,
             m,
             k,
-            x,
-            y,
+            stations,
             u,
             v,
             w,
-            a,
-            b,
+            residents,
         }
     }
 }
 
 pub struct Solution {
-    pub p: Vec<usize>,
-    pub b: Vec<usize>,
+    pub powers: Vec<usize>,
+    pub edges: Vec<usize>,
+}
+
+impl Solution {
+    // stationが繋がっているかどうかを判定する
+    fn connected_nodes(&self, input: &Input) -> Vec<bool> {
+        let mut uf = UnionFind::new(input.n);
+        for i in 0..input.m {
+            if self.edges[i] == 1 {
+                uf.union(input.u[i], input.v[i]);
+            }
+        }
+        let mut connected = vec![false; input.k];
+        for i in 0..input.k {
+            for j in 0..input.n {
+                if !uf.in_same_set(0, j) {
+                    // 繋がっていないのでスキップ
+                    continue;
+                }
+                let pow = self.powers[j];
+                if input.residents[i].dist(&input.stations[j]) <= (pow * pow) as i32 {
+                    connected[i] = true;
+                    break;
+                }
+            }
+        }
+        connected
+    }
+
+    /// スコアを計算する
+    fn evaluate_score(&self, input: &Input) -> usize {
+        let connected = self.connected_nodes(input);
+        let count = connected.iter().filter(|&x| *x).count();
+        if count < input.k {
+            (1e6 * ((count + 1) as f64 / input.k as f64)) as usize
+        } else {
+            let psq = self.powers.iter().map(|x| x * x).sum::<usize>();
+            let wsum = input
+                .w
+                .iter()
+                .zip(&self.edges)
+                .map(|(w, b)| w * b)
+                .sum::<usize>();
+            let s = psq + wsum;
+            (1e6 * (1.0 + 1e8 / (s as f64 + 1e7))) as usize
+        }
+    }
 }
 
 impl std::fmt::Display for Solution {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let ps = self
-            .p
+            .powers
             .iter()
             .map(usize::to_string)
             .collect::<Vec<String>>()
             .join(" ");
         let bs = self
-            .b
+            .edges
             .iter()
             .map(usize::to_string)
             .collect::<Vec<String>>()
@@ -96,11 +199,12 @@ pub struct Output {
 }
 
 pub fn solve(input: &Input) -> Output {
-    let p = vec![5000; input.n];
-    let b = vec![1; input.m];
-    let sol = Solution { p, b };
+    // let powers = vec![5000; input.n];
+    let powers = vec![100; input.n];
+    let edges = vec![1; input.m];
+    let sol = Solution { powers, edges };
     Output {
         output: format!("{}", sol),
-        score: input.n + 1,
+        score: sol.evaluate_score(input),
     }
 }

@@ -10,4 +10,6 @@ fn main() {
     let input = Input::from_source(&mut source);
     let solution = solve(&input);
     println!("{}", solution.output);
+    println!();
+    println!("{}", solution.score);
 }
