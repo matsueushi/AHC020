@@ -1,5 +1,5 @@
 use proconio::{input, marker::Usize1, source::Source};
-use std::io::BufRead;
+use std::{collections::BinaryHeap, io::BufRead};
 use union_find::UnionFind;
 
 pub mod union_find {
@@ -256,33 +256,56 @@ pub fn prim(input: &Input) -> Vec<bool> {
 }
 
 pub fn broadcast_from_nearest_station(input: &Input) -> Vec<usize> {
-    let mut powers = vec![0; input.n];
+    // 最も近い放送局から電波を流してもらう
+    // 最初に、各住民に対し、最も近い放送局と、放送局までの距離を調べる
+    // その後、最も放送局から遠い場所にいる住民から放送を開始する
+
+    let mut min_edge = vec![0; input.k];
+    let mut dist_pair = vec![vec![0; input.n]; input.k];
+    let mut heap = BinaryHeap::new();
 
     for i in 0..input.k {
-        let mut min_edge = 0;
         let mut min_dist = std::i32::MAX;
-
         for j in 0..input.n {
             let dist = input.residents[i].dist(&input.stations[j]);
+            dist_pair[i][j] = dist; // 距離を覚えておく
             if dist < min_dist {
                 min_dist = dist;
-                min_edge = j;
+                min_edge[i] = j;
             }
         }
-
-        // 一番近かった場所の力を更新
-        let p = (min_dist as f64).sqrt().ceil() as usize;
-        powers[min_edge] = powers[min_edge].max(p);
+        heap.push((min_dist, i));
     }
+
+    let mut powers = vec![0; input.n];
+    let mut used = vec![false; input.k];
+    // 距離が遠いものから解決していく
+    while let Some((dist, i)) = heap.pop() {
+        if used[i] {
+            continue;
+        }
+        // i から出力してもらう
+        let p = (dist as f64).sqrt().ceil() as usize;
+        let edge = min_edge[i];
+        powers[edge] = powers[edge].max(p);
+        // 既に放送ずみの住民を取り除く
+        // パフォーマンスはどうか？
+        for u in 0..input.k {
+            if dist_pair[u][edge] <= dist {
+                used[u] = true;
+            }
+        }
+    }
+
     powers
 }
 
 pub fn solve(input: &Input) -> Output {
-    // prim 法で最小全域木を求める
-    let edges = prim(input).iter().map(|&x| x as usize).collect();
-
     // 一番近い放送局に中継してもらう
     let powers = broadcast_from_nearest_station(input);
+
+    // prim 法で最小全域木を求める
+    let edges = prim(input).iter().map(|&x| x as usize).collect();
 
     let sol = Solution { powers, edges };
     Output {
