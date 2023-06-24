@@ -168,6 +168,7 @@ impl Solution {
                 .zip(&self.edges)
                 .map(|(w, b)| w * b)
                 .sum::<usize>();
+            // println!("{} {}", psq, wsum);
             let s = psq + wsum;
             (1e6 * (1.0 + 1e8 / (s as f64 + 1e7))) as usize
         }
@@ -254,10 +255,35 @@ pub fn prim(input: &Input) -> Vec<bool> {
     edges
 }
 
+pub fn broadcast_from_nearest_station(input: &Input) -> Vec<usize> {
+    let mut powers = vec![0; input.n];
+
+    for i in 0..input.k {
+        let mut min_edge = 0;
+        let mut min_dist = std::i32::MAX;
+
+        for j in 0..input.n {
+            let dist = input.residents[i].dist(&input.stations[j]);
+            if dist < min_dist {
+                min_dist = dist;
+                min_edge = j;
+            }
+        }
+
+        // 一番近かった場所の力を更新
+        let p = (min_dist as f64).sqrt().ceil() as usize;
+        powers[min_edge] = powers[min_edge].max(p);
+    }
+    powers
+}
+
 pub fn solve(input: &Input) -> Output {
-    let powers = vec![5000; input.n];
     // prim 法で最小全域木を求める
     let edges = prim(input).iter().map(|&x| x as usize).collect();
+
+    // 一番近い放送局に中継してもらう
+    let powers = broadcast_from_nearest_station(input);
+
     let sol = Solution { powers, edges };
     Output {
         output: format!("{}", sol),
