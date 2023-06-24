@@ -198,10 +198,66 @@ pub struct Output {
     pub score: usize,
 }
 
+// プリム法で最小全域木を求める
+pub fn prim(input: &Input) -> Vec<bool> {
+    let n = input.n;
+
+    let mut cost = vec![vec![std::usize::MAX; n]; n];
+    // 使う辺を覚えておきたい
+    let mut edge_id = vec![vec![std::usize::MAX; n]; n];
+
+    for i in 0..input.m {
+        let u = input.u[i];
+        let v = input.v[i];
+        let w = input.w[i];
+        cost[u][v] = w;
+        cost[v][u] = w;
+        edge_id[u][v] = i;
+        edge_id[v][u] = i;
+    }
+
+    let mut used = vec![false; n];
+    let mut min_cost = vec![std::usize::MAX; n]; // コスト
+    let mut min_edge = vec![std::usize::MAX; n]; // 一番近いノード
+
+    min_cost[0] = 0;
+    let mut prev_v = 0;
+    let mut edges = vec![false; input.m];
+    loop {
+        let mut v = std::usize::MAX;
+        // 属さない辺のうち、コスト最小になるものを探す
+        for i in 0..n {
+            if !used[i] && (v == std::usize::MAX || min_cost[i] < min_cost[v]) {
+                v = i;
+            }
+        }
+
+        if v == std::usize::MAX {
+            // 見つからなかった
+            break;
+        }
+
+        // 使った辺であることを記録
+        if prev_v != v {
+            edges[min_edge[v]] = true;
+        }
+
+        prev_v = v;
+        used[v] = true;
+        for j in 0..n {
+            if cost[v][j] < min_cost[j] {
+                min_cost[j] = cost[v][j];
+                min_edge[j] = edge_id[v][j];
+            }
+        }
+    }
+    edges
+}
+
 pub fn solve(input: &Input) -> Output {
-    // let powers = vec![5000; input.n];
-    let powers = vec![100; input.n];
-    let edges = vec![1; input.m];
+    let powers = vec![5000; input.n];
+    // prim 法で最小全域木を求める
+    let edges = prim(input).iter().map(|&x| x as usize).collect();
     let sol = Solution { powers, edges };
     Output {
         output: format!("{}", sol),
