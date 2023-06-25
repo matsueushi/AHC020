@@ -4,8 +4,6 @@
 cargo lambda build --release --arm64
 ```
 
-
-
 ```shell
 # cargo lambda deploy ahc
 cargo lambda deploy ahc -l /target/lambda/ -r ap-northeast-1 
@@ -30,8 +28,10 @@ cargo lambda deploy ahc -l /target/lambda/ -r ap-northeast-1
  - 既に他の放送局でカバーされているのであれば、出力しない
    seed 0: 1422158
    提出: 431,347,949
-
----
+   100件: 143,540,711
 
  - 無駄な放送局は不要であれば、接続しないようにする。
    接続しなくても良いだけで、経由して接続した方が距離が短くなるのであればそちらの方がいい
+   seed 0: 1462381
+   提出: 442,663,036
+   100件: 147,315,097

@@ -139,7 +139,7 @@ impl Input {
 
     pub fn graph(&self) -> Vec<Vec<usize>> {
         let n = self.n;
-        let mut cost = vec![vec![std::usize::MAX; n]; n];
+        let mut cost = vec![vec![std::usize::MAX / 4; n]; n];
         // 使う辺を覚えておきたい
 
         for i in 0..self.m {
@@ -316,17 +316,14 @@ pub fn broadcast_from_nearest_station(input: &Input) -> Vec<usize> {
 }
 
 // ワーシャルフロイド法。経路復元したい
-pub fn floyd_warshall(input: &Input) -> (Vec<Vec<usize>>, Vec<Vec<usize>>) {
-    let n = input.n;
-    let mut dist = vec![vec![std::usize::MAX / 4; n]; n];
+pub fn floyd_warshall(graph: &Vec<Vec<usize>>) -> (Vec<Vec<usize>>, Vec<Vec<usize>>) {
+    let n = graph.len();
+
+    let mut dist = graph.clone();
     let mut next = vec![vec![0; n]; n];
-    // 共通しているかも
-    for i in 0..input.m {
-        let u = input.u[i];
-        let v = input.v[i];
-        let w = input.w[i];
-        dist[u][v] = w;
-        dist[v][u] = w;
+    for i in 0..n {
+        // 自分自身の距離は0
+        dist[i][i] = 0;
     }
     for i in 0..n {
         for j in 0..n {
@@ -338,7 +335,7 @@ pub fn floyd_warshall(input: &Input) -> (Vec<Vec<usize>>, Vec<Vec<usize>>) {
         for i in 0..n {
             for j in 0..n {
                 let d = dist[i][k] + dist[k][j];
-                if dist[i][j] < d {
+                if d < dist[i][j] {
                     dist[i][j] = d;
                     next[i][j] = next[i][k];
                 }
@@ -353,22 +350,57 @@ pub fn solve(input: &Input) -> Output {
     // グラフ
     let graph = input.graph();
 
+    // ワーシャルフロイド法で二点間最短経路を求める
+    let (w_dist, w_next) = floyd_warshall(&graph);
+
     // 辺と片の番号の対応
     let edge_hash = input.edge_hash();
 
     // 一番近い放送局に中継してもらう
     let powers = broadcast_from_nearest_station(input);
 
-    // ワーシャルフロイド法で二点間最短経路を求めておく
+    // 使っているノードを集める
+    // 0は使うことにする
+    let used_nodes = std::iter::once(0)
+        .chain(
+            powers
+                .iter()
+                .enumerate()
+                .filter(|&(i, v)| i != 0 && *v > 0) // i == 0 は必ず必要なので排除
+                .map(|(i, _)| i),
+        )
+        .collect::<Vec<_>>();
+
+    // 使っているノードだけからグラフを構成する
+    let new_n = used_nodes.len();
+    let mut new_graph = vec![vec![0; new_n]; new_n];
+    for i in 0..new_n {
+        for j in 0..new_n {
+            let ii = used_nodes[i];
+            let jj = used_nodes[j];
+            new_graph[i][j] = w_dist[ii][jj];
+            new_graph[j][i] = w_dist[ii][jj];
+        }
+    }
 
     // prim 法で最小全域木を求める
-    let edge_nodes = prim(input.n, &graph);
+    let edge_nodes = prim(new_n, &new_graph);
 
-    // 使っている辺
+    // 経路復元をする
     let mut edges = vec![0; input.m];
     for (u, v) in edge_nodes {
-        let idx = edge_hash.get(&(u, v)).unwrap();
-        edges[*idx] = 1;
+        // 再構成した辺を、元の辺に戻す
+        let uu = used_nodes[u];
+        let vv = used_nodes[v];
+
+        let mut c = uu;
+        while c != vv {
+            // 次は？
+            let next_c = w_next[c][vv];
+            let idx = edge_hash.get(&(c, next_c)).unwrap();
+            edges[*idx] = 1;
+            c = next_c;
+        }
     }
 
     let sol = Solution { powers, edges };
