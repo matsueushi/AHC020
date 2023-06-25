@@ -1,5 +1,8 @@
 use proconio::{input, marker::Usize1, source::Source};
-use std::{collections::BinaryHeap, io::BufRead};
+use std::{
+    collections::{BinaryHeap, HashMap},
+    io::BufRead,
+};
 use union_find::UnionFind;
 
 pub mod union_find {
@@ -122,11 +125,22 @@ impl Input {
         }
     }
 
-    pub fn graph(&self) -> (Vec<Vec<usize>>, Vec<Vec<usize>>) {
+    pub fn edge_hash(&self) -> HashMap<(usize, usize), usize> {
+        let mut hs = HashMap::new();
+
+        for i in 0..self.m {
+            let u = self.u[i];
+            let v = self.v[i];
+            hs.insert((u, v), i);
+            hs.insert((v, u), i);
+        }
+        hs
+    }
+
+    pub fn graph(&self) -> Vec<Vec<usize>> {
         let n = self.n;
         let mut cost = vec![vec![std::usize::MAX; n]; n];
         // 使う辺を覚えておきたい
-        let mut edge_id = vec![vec![std::usize::MAX; n]; n];
 
         for i in 0..self.m {
             let u = self.u[i];
@@ -134,11 +148,8 @@ impl Input {
             let w = self.w[i];
             cost[u][v] = w;
             cost[v][u] = w;
-            edge_id[u][v] = i;
-            edge_id[v][u] = i;
         }
-
-        (cost, edge_id)
+        cost
     }
 }
 
@@ -219,18 +230,15 @@ pub struct Output {
 }
 
 // プリム法で最小全域木を求める
-pub fn prim(input: &Input) -> Vec<bool> {
-    let n = input.n;
-
-    let (cost, edge_id) = input.graph();
-
+pub fn prim(n: usize, cost: &Vec<Vec<usize>>) -> Vec<(usize, usize)> {
     let mut used = vec![false; n];
     let mut min_cost = vec![std::usize::MAX; n]; // コスト
     let mut min_edge = vec![std::usize::MAX; n]; // 一番近いノード
 
     min_cost[0] = 0;
     let mut prev_v = 0;
-    let mut edges = vec![false; input.m];
+
+    let mut edge_nodes = Vec::new();
     loop {
         let mut v = std::usize::MAX;
         // 属さない辺のうち、コスト最小になるものを探す
@@ -247,7 +255,7 @@ pub fn prim(input: &Input) -> Vec<bool> {
 
         // 使った辺であることを記録
         if prev_v != v {
-            edges[min_edge[v]] = true;
+            edge_nodes.push((v, min_edge[v]));
         }
 
         prev_v = v;
@@ -255,11 +263,11 @@ pub fn prim(input: &Input) -> Vec<bool> {
         for j in 0..n {
             if cost[v][j] < min_cost[j] {
                 min_cost[j] = cost[v][j];
-                min_edge[j] = edge_id[v][j];
+                min_edge[j] = v;
             }
         }
     }
-    edges
+    edge_nodes
 }
 
 pub fn broadcast_from_nearest_station(input: &Input) -> Vec<usize> {
@@ -342,13 +350,26 @@ pub fn floyd_warshall(input: &Input) -> (Vec<Vec<usize>>, Vec<Vec<usize>>) {
 }
 
 pub fn solve(input: &Input) -> Output {
+    // グラフ
+    let graph = input.graph();
+
+    // 辺と片の番号の対応
+    let edge_hash = input.edge_hash();
+
     // 一番近い放送局に中継してもらう
     let powers = broadcast_from_nearest_station(input);
 
     // ワーシャルフロイド法で二点間最短経路を求めておく
 
     // prim 法で最小全域木を求める
-    let edges = prim(input).iter().map(|&x| x as usize).collect();
+    let edge_nodes = prim(input.n, &graph);
+
+    // 使っている辺
+    let mut edges = vec![0; input.m];
+    for (u, v) in edge_nodes {
+        let idx = edge_hash.get(&(u, v)).unwrap();
+        edges[*idx] = 1;
+    }
 
     let sol = Solution { powers, edges };
     Output {
