@@ -121,6 +121,25 @@ impl Input {
             residents,
         }
     }
+
+    pub fn graph(&self) -> (Vec<Vec<usize>>, Vec<Vec<usize>>) {
+        let n = self.n;
+        let mut cost = vec![vec![std::usize::MAX; n]; n];
+        // 使う辺を覚えておきたい
+        let mut edge_id = vec![vec![std::usize::MAX; n]; n];
+
+        for i in 0..self.m {
+            let u = self.u[i];
+            let v = self.v[i];
+            let w = self.w[i];
+            cost[u][v] = w;
+            cost[v][u] = w;
+            edge_id[u][v] = i;
+            edge_id[v][u] = i;
+        }
+
+        (cost, edge_id)
+    }
 }
 
 pub struct Solution {
@@ -203,19 +222,7 @@ pub struct Output {
 pub fn prim(input: &Input) -> Vec<bool> {
     let n = input.n;
 
-    let mut cost = vec![vec![std::usize::MAX; n]; n];
-    // 使う辺を覚えておきたい
-    let mut edge_id = vec![vec![std::usize::MAX; n]; n];
-
-    for i in 0..input.m {
-        let u = input.u[i];
-        let v = input.v[i];
-        let w = input.w[i];
-        cost[u][v] = w;
-        cost[v][u] = w;
-        edge_id[u][v] = i;
-        edge_id[v][u] = i;
-    }
+    let (cost, edge_id) = input.graph();
 
     let mut used = vec![false; n];
     let mut min_cost = vec![std::usize::MAX; n]; // コスト
@@ -300,9 +307,45 @@ pub fn broadcast_from_nearest_station(input: &Input) -> Vec<usize> {
     powers
 }
 
+// ワーシャルフロイド法。経路復元したい
+pub fn floyd_warshall(input: &Input) -> (Vec<Vec<usize>>, Vec<Vec<usize>>) {
+    let n = input.n;
+    let mut dist = vec![vec![std::usize::MAX / 4; n]; n];
+    let mut next = vec![vec![0; n]; n];
+    // 共通しているかも
+    for i in 0..input.m {
+        let u = input.u[i];
+        let v = input.v[i];
+        let w = input.w[i];
+        dist[u][v] = w;
+        dist[v][u] = w;
+    }
+    for i in 0..n {
+        for j in 0..n {
+            next[i][j] = j;
+        }
+    }
+
+    for k in 0..n {
+        for i in 0..n {
+            for j in 0..n {
+                let d = dist[i][k] + dist[k][j];
+                if dist[i][j] < d {
+                    dist[i][j] = d;
+                    next[i][j] = next[i][k];
+                }
+            }
+        }
+    }
+
+    (dist, next)
+}
+
 pub fn solve(input: &Input) -> Output {
     // 一番近い放送局に中継してもらう
     let powers = broadcast_from_nearest_station(input);
+
+    // ワーシャルフロイド法で二点間最短経路を求めておく
 
     // prim 法で最小全域木を求める
     let edges = prim(input).iter().map(|&x| x as usize).collect();
