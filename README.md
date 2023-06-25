@@ -35,3 +35,7 @@ cargo lambda deploy ahc -l /target/lambda/ -r ap-northeast-1
    seed 0: 1462381
    提出: 442,663,036
    100件: 147,315,097
+
+---
+ - 複数の放送局を一つに統合する(辺が節約できる)
+ - 放送局の力の大きさをコントロールする
