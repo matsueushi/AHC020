@@ -4,8 +4,11 @@
 cargo lambda build --release --arm64
 ```
 
+
+
 ```shell
-cargo lambda deploy lambda-template
+# cargo lambda deploy ahc
+cargo lambda deploy ahc -l /target/lambda/ -r ap-northeast-1 
 ```
 
 ## メモ

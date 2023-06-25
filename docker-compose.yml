@@ -9,4 +9,4 @@ services:
       - 4000:4000
     tty: true
     environment:
-      CARGO_BUILD_TARGET_DIR: /target
+      CARGO_TARGET_DIR: /target
