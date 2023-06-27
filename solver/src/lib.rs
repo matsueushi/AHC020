@@ -67,7 +67,7 @@ impl Point {
     pub fn dist(&self, other: &Self) -> i64 {
         let dx = self.x - other.x;
         let dy = self.y - other.y;
-        ((dx * dx + dy * dy) as f64).sqrt().ceil() as i64
+        dx * dx + dy * dy
     }
 }
 
@@ -188,7 +188,7 @@ impl Solution {
                     continue;
                 }
                 let pow = self.powers[j];
-                if input.residents[i].dist(&input.stations[j]) <= pow {
+                if input.residents[i].dist(&input.stations[j]) <= pow * pow {
                     connected[i] = true;
                     break;
                 }
@@ -308,17 +308,18 @@ pub fn broadcast_from_nearest_station(dists: &Vec<Vec<i64>>) -> Vec<i64> {
     let mut powers = vec![0; n];
     let mut used = vec![false; k];
     // 距離が遠いものから解決していく
-    while let Some((p, i)) = heap.pop() {
+    while let Some((d, i)) = heap.pop() {
         if used[i] {
             continue;
         }
         // i から出力してもらう
         let edge = min_edge[i];
+        let p = (d as f64).sqrt().ceil() as i64;
         powers[edge] = powers[edge].max(p);
         // 既に放送ずみの住民を取り除く
         // パフォーマンスはどうか？
         for u in 0..k {
-            if dists[u][edge] <= p {
+            if dists[u][edge] <= d {
                 used[u] = true;
             }
         }
@@ -366,7 +367,7 @@ pub fn count_broadcasted(dists: &Vec<Vec<i64>>, powers: &Vec<i64>) -> Vec<i32> {
     let mut n_broadcasted = vec![0; k];
     for i in 0..k {
         for j in 0..n {
-            if dists[i][j] <= powers[j] {
+            if dists[i][j] <= powers[j] * powers[j] {
                 n_broadcasted[i] += 1;
             }
         }
@@ -395,83 +396,89 @@ pub fn solve(input: &Input) -> Output {
     let n_broadcasted = count_broadcasted(&dist_to_stations, &powers);
 
     // 他の円を少し大きくして解決できるならそうする
-    for j in 0..input.n {
-        // println!("{}", j);
-        let pj = powers[j];
-        if pj == 0 {
-            // 使われていない
-            continue;
-        }
-        // 節約できるエネルギー
-        let pjsq = pj * pj;
+    // for j in 0..input.n {
+    //     // println!("{}", j);
+    //     let pj = powers[j];
+    //     if pj == 0 {
+    //         // 使われていない
+    //         continue;
+    //     }
+    //     // 節約できるエネルギー
+    //     let pjsq = pj * pj;
 
-        // jの放送を中止した時に映像が見れなくなる人
-        let mut alones = Vec::new();
-        for i in 0..input.k {
-            if dist_to_stations[i][j] <= pj && n_broadcasted[i] == 1 {
-                alones.push(i);
-            }
-        }
+    //     // jの放送を中止した時に映像が見れなくなる人
+    //     let mut alones = Vec::new();
+    //     for i in 0..input.k {
+    //         if dist_to_stations[i][j] <= pj && n_broadcasted[i] == 1 {
+    //             alones.push(i);
+    //         }
+    //     }
 
-        // 見られなくなった人を見れるようにするためのコスト
-        let mut station_cost = 0;
-        let mut enlarge_stations = HashMap::new();
-        let mut ok = true;
-        for x in alones {
-            // 拡大するためにコスト最小となるものを探す
-            let mut station = 0;
-            let mut next_d = 0;
-            let mut min_cost = std::i64::MAX;
-            // 一つずつ円を見る
-            for jj in 0..input.n {
-                // 1. 使っていない
-                // 2. もともとと同じ
-                // 場合はスキップ
-                if powers[jj] == 0 || jj == j {
-                    continue;
-                }
-                // 放送局への距離
-                let d_orig = powers[jj];
-                let mut d = dist_to_stations[x][jj];
-                if let Some(d2) = enlarge_stations.get(&jj) {
-                    d = d.max(*d2);
-                }
-                if d <= d_orig || d > MAX_D {
-                    continue;
-                }
-                let cost = d * d - d_orig * d_orig;
-                if cost < min_cost {
-                    station = jj;
-                    next_d = d;
-                    min_cost = cost;
-                }
-            }
+    //     // 見られなくなった人を見れるようにするためのコスト
+    //     let mut station_cost = 0;
+    //     let mut enlarge_stations = HashMap::new();
+    //     let mut ok = true;
+    //     for x in alones {
+    //         // 拡大するためにコスト最小となるものを探す
+    //         let mut station = 0;
+    //         let mut next_d = 0;
+    //         let mut min_cost = std::i64::MAX;
+    //         // 一つずつ円を見る
+    //         for jj in 0..input.n {
+    //             // 1. 使っていない
+    //             // 2. もともとと同じ
+    //             // 場合はスキップ
+    //             if powers[jj] == 0 || jj == j {
+    //                 continue;
+    //             }
+    //             // 放送局への距離
+    //             let d_orig = powers[jj];
+    //             let mut d = dist_to_stations[x][jj];
+    //             if let Some(d2) = enlarge_stations.get(&jj) {
+    //                 d = d.max(*d2);
+    //             }
+    //             if d <= d_orig || d > MAX_D {
+    //                 continue;
+    //             }
+    //             let cost = d * d - d_orig * d_orig;
+    //             if cost < min_cost {
+    //                 station = jj;
+    //                 next_d = d;
+    //                 min_cost = cost;
+    //             }
+    //         }
 
-            if min_cost == std::i64::MAX {
-                ok = false;
-                break;
-            }
+    //         if min_cost == std::i64::MAX {
+    //             ok = false;
+    //             break;
+    //         }
 
-            // println!("{} {}", station, next_d);
-            enlarge_stations.insert(station, next_d);
-            // println!("min cost {}", min_cost);
-            station_cost += min_cost;
-        }
+    //         // println!("{} {}", station, next_d);
+    //         enlarge_stations.insert(station, next_d);
+    //         // println!("min cost {}", min_cost);
+    //         station_cost += min_cost;
+    //     }
 
-        if !ok {
-            continue;
-        }
+    //     if !ok {
+    //         continue;
+    //     }
 
-        // 最小コストがコスト以下だったら除去する
-        if station_cost < pjsq {
-            // println!("{:?} {} {}", enlarge_stations, station_cost, pjsq);
-            powers[j] = 0;
-            for (&st, &d) in &enlarge_stations {
-                powers[st] = d;
-            }
-            break;
-        }
-    }
+    //     // 最小コストがコスト以下だったら除去する
+    //     if station_cost < pjsq {
+    //         // println!("{:?} {} {}", enlarge_stations, station_cost, pjsq);
+    //         powers[j] = 0;
+    //         for (&st, &d) in &enlarge_stations {
+    //             powers[st] = d;
+    //         }
+
+    //         // 放送されているかチェックする
+    //         // デバッグ用
+    //         // let count = count_broadcasted(&dist_to_stations, &powers);
+    //         // if count.iter().all(|v| *v == 0) {
+    //         //     println!("error!!!!!");
+    //         // }
+    //     }
+    // }
 
     // 使っているノードを集める
     // 0は使うことにする
