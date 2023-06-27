@@ -388,82 +388,90 @@ pub fn solve(input: &Input) -> Output {
     let dist_to_stations = input.dist_to_stations();
 
     // 一番近い放送局に中継してもらう
-    let powers = broadcast_from_nearest_station(&dist_to_stations);
+    let mut powers = broadcast_from_nearest_station(&dist_to_stations);
 
     // 不要な放送局の削減
     // いくつの放送局にカバーされているか
-    // let n_broadcasted = count_broadcasted(&dist_to_stations, &powers);
+    let n_broadcasted = count_broadcasted(&dist_to_stations, &powers);
 
-    // // 他の円を少し大きくして解決できるならそうする
-    // for j in 0..input.n {
-    //     let pj = powers[j];
-    //     if pj == 0 {
-    //         // 使われていない
-    //         continue;
-    //     }
-    //     // 節約できるエネルギー
-    //     let pjsq = pj * pj;
+    // 他の円を少し大きくして解決できるならそうする
+    for j in 0..input.n {
+        // println!("{}", j);
+        let pj = powers[j];
+        if pj == 0 {
+            // 使われていない
+            continue;
+        }
+        // 節約できるエネルギー
+        let pjsq = pj * pj;
 
-    //     // jの放送を中止した時に映像が見れなくなる人
-    //     let mut alones = Vec::new();
-    //     for i in 0..input.k {
-    //         if dist_to_stations[i][j] <= pj && n_broadcasted[i] == 1 {
-    //             alones.push(i);
-    //         }
-    //     }
+        // jの放送を中止した時に映像が見れなくなる人
+        let mut alones = Vec::new();
+        for i in 0..input.k {
+            if dist_to_stations[i][j] <= pj && n_broadcasted[i] == 1 {
+                alones.push(i);
+            }
+        }
 
-    //     // 見られなくなった人を見れるようにするためのコスト
-    //     let mut station_cost = 0;
-    //     let mut enlarge_stations = HashMap::new();
-    //     let mut ok = true;
-    //     for x in alones {
-    //         // 拡大するためにコスト最小となるものを探す
-    //         let mut station = 0;
-    //         let mut next_d = 0;
-    //         let mut min_cost = std::i64::MAX;
-    //         // 一つずつ円を見る
-    //         for jj in 0..input.n {
-    //             // 1. 使っていない
-    //             // 2. もともとと同じ
-    //             // 場合はスキップ
-    //             if powers[jj] == 0 || jj == x {
-    //                 continue;
-    //             }
-    //             // 放送局への距離
-    //             let d = dist_to_stations[x][jj];
-    //             let d_orig = enlarge_stations.get(&jj).unwrap_or(&powers[jj]);
-    //             if d > MAX_D {
-    //                 continue;
-    //             }
-    //             let cost = d * d - d_orig * d_orig;
-    //             if cost < min_cost {
-    //                 station = jj;
-    //                 next_d = d;
-    //                 min_cost = cost;
-    //             }
-    //         }
+        // 見られなくなった人を見れるようにするためのコスト
+        let mut station_cost = 0;
+        let mut enlarge_stations = HashMap::new();
+        let mut ok = true;
+        for x in alones {
+            // 拡大するためにコスト最小となるものを探す
+            let mut station = 0;
+            let mut next_d = 0;
+            let mut min_cost = std::i64::MAX;
+            // 一つずつ円を見る
+            for jj in 0..input.n {
+                // 1. 使っていない
+                // 2. もともとと同じ
+                // 場合はスキップ
+                if powers[jj] == 0 || jj == j {
+                    continue;
+                }
+                // 放送局への距離
+                let d_orig = powers[jj];
+                let mut d = dist_to_stations[x][jj];
+                if let Some(d2) = enlarge_stations.get(&jj) {
+                    d = d.max(*d2);
+                }
+                if d <= d_orig || d > MAX_D {
+                    continue;
+                }
+                let cost = d * d - d_orig * d_orig;
+                if cost < min_cost {
+                    station = jj;
+                    next_d = d;
+                    min_cost = cost;
+                }
+            }
 
-    //         if min_cost == std::i64::MAX {
-    //             ok = false;
-    //             break;
-    //         }
+            if min_cost == std::i64::MAX {
+                ok = false;
+                break;
+            }
 
-    //         enlarge_stations.insert(station, next_d);
-    //         station_cost += min_cost;
-    //     }
+            // println!("{} {}", station, next_d);
+            enlarge_stations.insert(station, next_d);
+            // println!("min cost {}", min_cost);
+            station_cost += min_cost;
+        }
 
-    //     if !ok {
-    //         continue;
-    //     }
+        if !ok {
+            continue;
+        }
 
-    //     println!("{:?} {} {}", enlarge_stations, station_cost, pjsq);
-    //     // 最小コストがコスト以下だったら除去する
-    //     if station_cost < pjsq {
-    //         for (&st, &d) in &enlarge_stations {
-    //             powers[st] = d;
-    //         }
-    //     }
-    // }
+        // 最小コストがコスト以下だったら除去する
+        if station_cost < pjsq {
+            // println!("{:?} {} {}", enlarge_stations, station_cost, pjsq);
+            powers[j] = 0;
+            for (&st, &d) in &enlarge_stations {
+                powers[st] = d;
+            }
+            break;
+        }
+    }
 
     // 使っているノードを集める
     // 0は使うことにする
