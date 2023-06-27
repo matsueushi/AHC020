@@ -5,6 +5,8 @@ use std::{
 };
 use union_find::UnionFind;
 
+const MAX_D: i64 = 5000;
+
 pub mod union_find {
 
     #[derive(Debug, Clone)]
@@ -281,19 +283,20 @@ pub fn prim(n: usize, cost: &Vec<Vec<usize>>) -> Vec<(usize, usize)> {
     edge_nodes
 }
 
-pub fn broadcast_from_nearest_station(input: &Input) -> Vec<i64> {
+pub fn broadcast_from_nearest_station(dists: &Vec<Vec<i64>>) -> Vec<i64> {
     // 最も近い放送局から電波を流してもらう
     // 最初に、各住民に対し、最も近い放送局と、放送局までの距離を調べる
     // その後、最も放送局から遠い場所にいる住民から放送を開始する
+    let k = dists.len();
+    let n = dists[0].len();
 
-    let mut min_edge = vec![0; input.k];
-    let dist_pair = input.dist_to_stations();
+    let mut min_edge = vec![0; k];
     let mut heap = BinaryHeap::new();
 
-    for i in 0..input.k {
+    for i in 0..k {
         let mut min_dist = std::i64::MAX;
-        for j in 0..input.n {
-            let dist = dist_pair[i][j];
+        for j in 0..n {
+            let dist = dists[i][j];
             if dist < min_dist {
                 min_dist = dist;
                 min_edge[i] = j;
@@ -302,8 +305,8 @@ pub fn broadcast_from_nearest_station(input: &Input) -> Vec<i64> {
         heap.push((min_dist, i));
     }
 
-    let mut powers = vec![0; input.n];
-    let mut used = vec![false; input.k];
+    let mut powers = vec![0; n];
+    let mut used = vec![false; k];
     // 距離が遠いものから解決していく
     while let Some((p, i)) = heap.pop() {
         if used[i] {
@@ -314,8 +317,8 @@ pub fn broadcast_from_nearest_station(input: &Input) -> Vec<i64> {
         powers[edge] = powers[edge].max(p);
         // 既に放送ずみの住民を取り除く
         // パフォーマンスはどうか？
-        for u in 0..input.k {
-            if dist_pair[u][edge] <= p {
+        for u in 0..k {
+            if dists[u][edge] <= p {
                 used[u] = true;
             }
         }
@@ -355,6 +358,22 @@ pub fn floyd_warshall(graph: &Vec<Vec<usize>>) -> (Vec<Vec<usize>>, Vec<Vec<usiz
     (dist, next)
 }
 
+pub fn count_broadcasted(dists: &Vec<Vec<i64>>, powers: &Vec<i64>) -> Vec<i32> {
+    let k = dists.len();
+    let n = powers.len();
+
+    // いくつの放送局にカバーされているか
+    let mut n_broadcasted = vec![0; k];
+    for i in 0..k {
+        for j in 0..n {
+            if dists[i][j] <= powers[j] {
+                n_broadcasted[i] += 1;
+            }
+        }
+    }
+    n_broadcasted
+}
+
 pub fn solve(input: &Input) -> Output {
     // グラフ
     let graph = input.graph();
@@ -365,24 +384,15 @@ pub fn solve(input: &Input) -> Output {
     // 辺と片の番号の対応
     let edge_hash = input.edge_hash();
 
-    // 一番近い放送局に中継してもらう
-    let mut powers = broadcast_from_nearest_station(input);
+    // 放送局までの距離
+    let dist_to_stations = input.dist_to_stations();
 
-    // // 不要な放送局の削減
-    // // 使いまわせる
-    // let dist_to_stations = input.dist_to_stations();
-    // // いくつの放送局にカバーされているか
-    // let mut n_broadcasted = vec![0; input.k];
-    // // 何人をカバーしているか
-    // // let mut n_residents = vec![0; input.n];
-    // for i in 0..input.k {
-    //     for j in 0..input.n {
-    //         if dist_to_stations[i][j] <= powers[j] {
-    //             n_broadcasted[i] += 1;
-    //             // n_residents[j] += 1;
-    //         }
-    //     }
-    // }
+    // 一番近い放送局に中継してもらう
+    let powers = broadcast_from_nearest_station(&dist_to_stations);
+
+    // 不要な放送局の削減
+    // いくつの放送局にカバーされているか
+    // let n_broadcasted = count_broadcasted(&dist_to_stations, &powers);
 
     // // 他の円を少し大きくして解決できるならそうする
     // for j in 0..input.n {
@@ -408,21 +418,28 @@ pub fn solve(input: &Input) -> Output {
     //     let mut ok = true;
     //     for x in alones {
     //         // 拡大するためにコスト最小となるものを探す
+    //         let mut station = 0;
     //         let mut next_d = 0;
     //         let mut min_cost = std::i64::MAX;
-    //         let mut station = 0;
+    //         // 一つずつ円を見る
     //         for jj in 0..input.n {
-    //             let d = dist_to_stations[x][jj];
-    //             let p = enlarge_stations.get(&jj).unwrap_or(&powers[jj]);
-    //             if *p == 0 || *p >= 5000 {
+    //             // 1. 使っていない
+    //             // 2. もともとと同じ
+    //             // 場合はスキップ
+    //             if powers[jj] == 0 || jj == x {
     //                 continue;
     //             }
-    //             // 既に拡大されている
-    //             let cost = d * d - p * p;
+    //             // 放送局への距離
+    //             let d = dist_to_stations[x][jj];
+    //             let d_orig = enlarge_stations.get(&jj).unwrap_or(&powers[jj]);
+    //             if d > MAX_D {
+    //                 continue;
+    //             }
+    //             let cost = d * d - d_orig * d_orig;
     //             if cost < min_cost {
+    //                 station = jj;
     //                 next_d = d;
     //                 min_cost = cost;
-    //                 station = jj;
     //             }
     //         }
 
