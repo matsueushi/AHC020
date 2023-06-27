@@ -57,15 +57,15 @@ pub mod union_find {
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq, Hash)]
 pub struct Point {
-    pub x: i32,
-    pub y: i32,
+    pub x: i64,
+    pub y: i64,
 }
 
 impl Point {
-    pub fn dist(&self, other: &Self) -> i32 {
+    pub fn dist(&self, other: &Self) -> i64 {
         let dx = self.x - other.x;
         let dy = self.y - other.y;
-        dx * dx + dy * dy
+        ((dx * dx + dy * dy) as f64).sqrt().ceil() as i64
     }
 }
 
@@ -88,9 +88,9 @@ impl Input {
             n: usize,
             m: usize,
             k: usize,
-            xy: [(i32, i32); n],
+            xy: [(i64, i64); n],
             uvw: [(Usize1, Usize1, usize); m],
-            ab: [(i32, i32); k],
+            ab: [(i64, i64); k],
         }
         let mut x = vec![0; n];
         let mut y = vec![0; n];
@@ -152,7 +152,7 @@ impl Input {
         cost
     }
 
-    pub fn dist_to_stations(&self) -> Vec<Vec<i32>> {
+    pub fn dist_to_stations(&self) -> Vec<Vec<i64>> {
         let mut dist_pair = vec![vec![0; self.n]; self.k];
         for i in 0..self.k {
             for j in 0..self.n {
@@ -165,7 +165,7 @@ impl Input {
 }
 
 pub struct Solution {
-    pub powers: Vec<usize>,
+    pub powers: Vec<i64>,
     pub edges: Vec<usize>,
 }
 
@@ -186,7 +186,7 @@ impl Solution {
                     continue;
                 }
                 let pow = self.powers[j];
-                if input.residents[i].dist(&input.stations[j]) <= (pow * pow) as i32 {
+                if input.residents[i].dist(&input.stations[j]) <= pow {
                     connected[i] = true;
                     break;
                 }
@@ -202,13 +202,13 @@ impl Solution {
         if count < input.k {
             (1e6 * ((count + 1) as f64 / input.k as f64)) as usize
         } else {
-            let psq = self.powers.iter().map(|x| x * x).sum::<usize>();
+            let psq = self.powers.iter().map(|x| x * x).sum::<i64>();
             let wsum = input
                 .w
                 .iter()
                 .zip(&self.edges)
-                .map(|(w, b)| w * b)
-                .sum::<usize>();
+                .map(|(w, b)| (w * b) as i64)
+                .sum::<i64>();
             // println!("{} {}", psq, wsum);
             let s = psq + wsum;
             (1e6 * (1.0 + 1e8 / (s as f64 + 1e7))) as usize
@@ -221,7 +221,7 @@ impl std::fmt::Display for Solution {
         let ps = self
             .powers
             .iter()
-            .map(usize::to_string)
+            .map(i64::to_string)
             .collect::<Vec<String>>()
             .join(" ");
         let bs = self
@@ -281,7 +281,7 @@ pub fn prim(n: usize, cost: &Vec<Vec<usize>>) -> Vec<(usize, usize)> {
     edge_nodes
 }
 
-pub fn broadcast_from_nearest_station(input: &Input) -> Vec<usize> {
+pub fn broadcast_from_nearest_station(input: &Input) -> Vec<i64> {
     // 最も近い放送局から電波を流してもらう
     // 最初に、各住民に対し、最も近い放送局と、放送局までの距離を調べる
     // その後、最も放送局から遠い場所にいる住民から放送を開始する
@@ -291,7 +291,7 @@ pub fn broadcast_from_nearest_station(input: &Input) -> Vec<usize> {
     let mut heap = BinaryHeap::new();
 
     for i in 0..input.k {
-        let mut min_dist = std::i32::MAX;
+        let mut min_dist = std::i64::MAX;
         for j in 0..input.n {
             let dist = dist_pair[i][j];
             if dist < min_dist {
@@ -305,18 +305,17 @@ pub fn broadcast_from_nearest_station(input: &Input) -> Vec<usize> {
     let mut powers = vec![0; input.n];
     let mut used = vec![false; input.k];
     // 距離が遠いものから解決していく
-    while let Some((dist, i)) = heap.pop() {
+    while let Some((p, i)) = heap.pop() {
         if used[i] {
             continue;
         }
         // i から出力してもらう
-        let p = (dist as f64).sqrt().ceil() as usize;
         let edge = min_edge[i];
         powers[edge] = powers[edge].max(p);
         // 既に放送ずみの住民を取り除く
         // パフォーマンスはどうか？
         for u in 0..input.k {
-            if dist_pair[u][edge] <= dist {
+            if dist_pair[u][edge] <= p {
                 used[u] = true;
             }
         }
@@ -369,45 +368,85 @@ pub fn solve(input: &Input) -> Output {
     // 一番近い放送局に中継してもらう
     let mut powers = broadcast_from_nearest_station(input);
 
-    // 不要な放送局の削減
-    // 使いまわせる
-    let dist_to_stations = input.dist_to_stations();
-    // いくつの放送局にカバーされているか
-    let mut n_broadcasted = vec![0; input.k];
-    // 何人をカバーしているか
-    let mut n_residents = vec![0; input.n];
-    for i in 0..input.k {
-        for j in 0..input.n {
-            if dist_to_stations[i][j] as usize <= powers[j] * powers[j] {
-                n_broadcasted[i] += 1;
-                n_residents[j] += 1;
-            }
-        }
-    }
+    // // 不要な放送局の削減
+    // // 使いまわせる
+    // let dist_to_stations = input.dist_to_stations();
+    // // いくつの放送局にカバーされているか
+    // let mut n_broadcasted = vec![0; input.k];
+    // // 何人をカバーしているか
+    // // let mut n_residents = vec![0; input.n];
+    // for i in 0..input.k {
+    //     for j in 0..input.n {
+    //         if dist_to_stations[i][j] <= powers[j] {
+    //             n_broadcasted[i] += 1;
+    //             // n_residents[j] += 1;
+    //         }
+    //     }
+    // }
 
-    // 既に他によって覆われている
-    for j in 0..input.n {
-        let mut ok = true;
-        for i in 0..input.k {
-            // j番目の放送局がiに対して単独放送している
-            if dist_to_stations[i][j] as usize <= powers[j] * powers[j] && n_broadcasted[i] == 1 {
-                // 除去できない
-                ok = false;
-                break;
-            }
-        }
-        if ok {
-            // 除去可能
-            n_residents[j] = 0;
-            powers[j] = 0;
-            for i in 0..input.k {
-                // j番目の放送局がiに対して単独放送している
-                if dist_to_stations[i][j] as usize <= powers[j] * powers[j] {
-                    n_broadcasted[i] -= 1;
-                }
-            }
-        }
-    }
+    // // 他の円を少し大きくして解決できるならそうする
+    // for j in 0..input.n {
+    //     let pj = powers[j];
+    //     if pj == 0 {
+    //         // 使われていない
+    //         continue;
+    //     }
+    //     // 節約できるエネルギー
+    //     let pjsq = pj * pj;
+
+    //     // jの放送を中止した時に映像が見れなくなる人
+    //     let mut alones = Vec::new();
+    //     for i in 0..input.k {
+    //         if dist_to_stations[i][j] <= pj && n_broadcasted[i] == 1 {
+    //             alones.push(i);
+    //         }
+    //     }
+
+    //     // 見られなくなった人を見れるようにするためのコスト
+    //     let mut station_cost = 0;
+    //     let mut enlarge_stations = HashMap::new();
+    //     let mut ok = true;
+    //     for x in alones {
+    //         // 拡大するためにコスト最小となるものを探す
+    //         let mut next_d = 0;
+    //         let mut min_cost = std::i64::MAX;
+    //         let mut station = 0;
+    //         for jj in 0..input.n {
+    //             let d = dist_to_stations[x][jj];
+    //             let p = enlarge_stations.get(&jj).unwrap_or(&powers[jj]);
+    //             if *p == 0 || *p >= 5000 {
+    //                 continue;
+    //             }
+    //             // 既に拡大されている
+    //             let cost = d * d - p * p;
+    //             if cost < min_cost {
+    //                 next_d = d;
+    //                 min_cost = cost;
+    //                 station = jj;
+    //             }
+    //         }
+
+    //         if min_cost == std::i64::MAX {
+    //             ok = false;
+    //             break;
+    //         }
+
+    //         enlarge_stations.insert(station, next_d);
+    //         station_cost += min_cost;
+    //     }
+
+    //     if !ok {
+    //         continue;
+    //     }
+
+    //     println!("{:?} {} {}", enlarge_stations, station_cost, pjsq);
+    //     // 最小コストがコスト以下だったら除去する
+    //     if station_cost < pjsq {
+    //         for (&st, &d) in &enlarge_stations {
+    //             powers[st] = d;
+    //         }
+    //     }
+    // }
 
     // 使っているノードを集める
     // 0は使うことにする
