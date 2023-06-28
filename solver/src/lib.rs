@@ -379,16 +379,85 @@ pub fn count_broadcasted(dists: &Vec<Vec<i64>>, powers: &Vec<i64>) -> Vec<i32> {
     n_broadcasted
 }
 
+// 変わらないデータ
+pub struct Field {
+    n_edge: usize,
+    edge_hash: HashMap<(usize, usize), usize>, // 辺と片の番号の対応
+    w_dist: Vec<Vec<usize>>,                   // ワーシャルフロイド法で求めた二点間距離
+    w_next: Vec<Vec<usize>>,                   // ワーシャルフロイド法の経路復元用
+}
+
+impl Field {
+    pub fn new(input: &Input) -> Self {
+        let edge_hash = input.edge_hash();
+
+        // グラフ
+        let graph = input.graph();
+
+        let (w_dist, w_next) = floyd_warshall(&graph);
+        Self {
+            n_edge: input.m,
+            edge_hash,
+            w_dist,
+            w_next,
+        }
+    }
+
+    pub fn search_edges(&self, powers: &[i64]) -> Vec<usize> {
+        // ワーシャルフロイド法で二点間最短経路を求める
+        let used_nodes = find_used_nodes(powers);
+
+        // 使っているノードだけからグラフを構成する
+        let new_n = used_nodes.len();
+        let mut new_graph = vec![vec![0; new_n]; new_n];
+        for i in 0..new_n {
+            for j in 0..new_n {
+                let ii = used_nodes[i];
+                let jj = used_nodes[j];
+                new_graph[i][j] = self.w_dist[ii][jj];
+                new_graph[j][i] = self.w_dist[ii][jj];
+            }
+        }
+
+        // prim 法で最小全域木を求める
+        let edge_nodes = prim(new_n, &new_graph);
+
+        // 経路復元をする
+        let mut edges = vec![0; self.n_edge];
+        for (u, v) in edge_nodes {
+            // 再構成した辺を、元の辺に戻す
+            let uu = used_nodes[u];
+            let vv = used_nodes[v];
+
+            let mut c = uu;
+            while c != vv {
+                // 次は？
+                let next_c = self.w_next[c][vv];
+                let idx = self.edge_hash.get(&(c, next_c)).unwrap();
+                edges[*idx] = 1;
+                c = next_c;
+            }
+        }
+
+        edges
+    }
+}
+
+pub fn find_used_nodes(powers: &[i64]) -> Vec<usize> {
+    // 使っているノードを集める
+    // 0は使うことにする
+    std::iter::once(0)
+        .chain(
+            powers
+                .iter()
+                .enumerate()
+                .filter(|&(i, v)| i != 0 && *v > 0) // i == 0 は必ず必要なので排除
+                .map(|(i, _)| i),
+        )
+        .collect::<Vec<_>>()
+}
+
 pub fn solve(input: &Input) -> Output {
-    // グラフ
-    let graph = input.graph();
-
-    // ワーシャルフロイド法で二点間最短経路を求める
-    let (w_dist, w_next) = floyd_warshall(&graph);
-
-    // 辺と片の番号の対応
-    let edge_hash = input.edge_hash();
-
     // 放送局までの距離
     let dist_to_stations = input.dist_to_stations();
 
@@ -482,49 +551,8 @@ pub fn solve(input: &Input) -> Output {
         }
     }
 
-    // 使っているノードを集める
-    // 0は使うことにする
-    let used_nodes = std::iter::once(0)
-        .chain(
-            powers
-                .iter()
-                .enumerate()
-                .filter(|&(i, v)| i != 0 && *v > 0) // i == 0 は必ず必要なので排除
-                .map(|(i, _)| i),
-        )
-        .collect::<Vec<_>>();
-
-    // 使っているノードだけからグラフを構成する
-    let new_n = used_nodes.len();
-    let mut new_graph = vec![vec![0; new_n]; new_n];
-    for i in 0..new_n {
-        for j in 0..new_n {
-            let ii = used_nodes[i];
-            let jj = used_nodes[j];
-            new_graph[i][j] = w_dist[ii][jj];
-            new_graph[j][i] = w_dist[ii][jj];
-        }
-    }
-
-    // prim 法で最小全域木を求める
-    let edge_nodes = prim(new_n, &new_graph);
-
-    // 経路復元をする
-    let mut edges = vec![0; input.m];
-    for (u, v) in edge_nodes {
-        // 再構成した辺を、元の辺に戻す
-        let uu = used_nodes[u];
-        let vv = used_nodes[v];
-
-        let mut c = uu;
-        while c != vv {
-            // 次は？
-            let next_c = w_next[c][vv];
-            let idx = edge_hash.get(&(c, next_c)).unwrap();
-            edges[*idx] = 1;
-            c = next_c;
-        }
-    }
+    let field = Field::new(&input);
+    let edges = field.search_edges(&powers);
 
     let sol = Solution { powers, edges };
     Output {
