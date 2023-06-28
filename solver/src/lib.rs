@@ -471,12 +471,16 @@ pub fn solve(input: &Input) -> Output {
     let field = Field::new(&input);
 
     // 一番近い放送局に中継してもらう
-    let mut powers = field.broadcast_from_nearest_station();
+    let powers = field.broadcast_from_nearest_station();
+    let edges = field.search_edges(&powers);
+    let mut sol = Solution { powers, edges };
+    let mut score = sol.evaluate_score(&input);
+
+    // step 1
 
     // 不要な放送局の削減
     // いくつの放送局にカバーされているか
-    let mut n_broadcasted = field.count_broadcasted(&powers);
-
+    let mut n_broadcasted = field.count_broadcasted(&sol.powers);
     let mut updated = true;
 
     while updated {
@@ -485,7 +489,7 @@ pub fn solve(input: &Input) -> Output {
         // 他の円を少し大きくして解決できるならそうする
         for j in 0..input.n {
             // println!("{}", j);
-            let pj = powers[j];
+            let pj = sol.powers[j];
             if pj == 0 {
                 // 使われていない
                 continue;
@@ -500,7 +504,6 @@ pub fn solve(input: &Input) -> Output {
             }
 
             // 見られなくなった人を見れるようにするためのコスト
-            let mut station_cost = 0;
             let mut enlarge_stations = HashMap::new();
             let mut ok = true;
             // println!("{:?}", alones);
@@ -514,11 +517,11 @@ pub fn solve(input: &Input) -> Output {
                     // 1. 使っていない
                     // 2. もともとと同じ
                     // 場合はスキップ
-                    if powers[jj] == 0 || jj == j {
+                    if sol.powers[jj] == 0 || jj == j {
                         continue;
                     }
                     // 放送局への距離
-                    let d_orig = powers[jj] * powers[jj];
+                    let d_orig = sol.powers[jj] * sol.powers[jj];
                     let mut d = field.distance(x, jj);
                     if let Some(d2) = enlarge_stations.get(&jj) {
                         d = d.max(*d2);
@@ -542,24 +545,33 @@ pub fn solve(input: &Input) -> Output {
                 // println!("{} {}", station, next_d);
                 enlarge_stations.insert(station, next_d);
                 // println!("min cost {}", min_cost);
-                station_cost += min_cost;
             }
 
             if !ok {
                 continue;
             }
 
+            let mut new_powers = sol.powers.clone();
+            new_powers[j] = 0;
+            for (&st, &d) in &enlarge_stations {
+                let p = dist_to_power(d);
+                new_powers[st] = p;
+            }
+            let new_edges = field.search_edges(&new_powers);
+            let new_sol = Solution {
+                powers: new_powers,
+                edges: new_edges,
+            };
+
+            let new_score = new_sol.evaluate_score(input);
             // 最小コストがコスト以下だったら除去する
-            if station_cost < pj * pj {
+            if new_score > score {
+                score = new_score;
+                sol = new_sol;
                 // println!("{:?} {} {}", enlarge_stations, station_cost, pjsq);
-                powers[j] = 0;
-                for (&st, &d) in &enlarge_stations {
-                    let p = dist_to_power(d);
-                    powers[st] = p;
-                }
 
                 // n_broadcasted を更新する
-                n_broadcasted = field.count_broadcasted(&powers);
+                n_broadcasted = field.count_broadcasted(&sol.powers);
 
                 // 更新された
                 updated = true;
@@ -567,11 +579,8 @@ pub fn solve(input: &Input) -> Output {
         }
     }
 
-    let edges = field.search_edges(&powers);
-
-    let sol = Solution { powers, edges };
     Output {
         output: format!("{}", sol),
-        score: sol.evaluate_score(input),
+        score: score,
     }
 }
